@@ -23,3 +23,22 @@ func ReadFile(ctx context.Context, max int, sleep time.Duration, c chan string, 
 		}
 	}
 }
+
+func Paginated(lastId int, limit int, stop int) ([]int, error) {
+	var ids []int
+	for i := 1; i <= limit; i++ {
+		id := lastId + i
+		if id > stop {
+			break
+		}
+		ids = append(ids, id)
+	}
+
+	return ids, nil
+}
+
+func Process(ids []int) error {
+	fmt.Println(ids)
+
+	return nil
+}

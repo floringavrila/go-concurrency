@@ -73,3 +73,89 @@ func WaitChanel(ctx context.Context) {
 
 	fmt.Println("finished")
 }
+
+func FailOnFirstError(ctx context.Context) {
+	concurrency := 5
+	batchSize := 100
+	stop := 1000
+	closeEarly := make(chan bool)
+	errChan := make(chan error)
+	dataChan := make(chan []int, concurrency)
+	defer close(closeEarly)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	// data and error producer
+	go func() {
+		defer wg.Done()
+		defer close(dataChan)
+		lastId := 0
+		for {
+			select {
+			case <-closeEarly:
+				return
+			default:
+			}
+			ids, err := util.Paginated(lastId, batchSize, stop)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			if len(ids) == 0 {
+				return
+			}
+			dataChan <- ids
+			lastId = ids[len(ids)-1]
+		}
+	}()
+
+	// data consumers and error producers
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-closeEarly:
+					return
+				default:
+				}
+				ids, ok := <-dataChan
+				if ok {
+					err := util.Process(ids)
+					if err != nil {
+						errChan <- err
+						return
+					}
+				} else {
+					return
+				}
+			}
+		}()
+	}
+
+	// wait for error producers before closing the chanel
+	go func() {
+		wg.Wait()
+		close(errChan)
+	}()
+
+	// check for errors
+	for {
+		select {
+		case <-ctx.Done():
+			// hitting CTRL+C will stop the program.
+			// then, the closeEarly chanel will be closed on defer, which will send
+			// an empty broadcast event on all listening goroutines
+			return
+		default:
+		}
+		e, ok := <-errChan
+		if ok {
+			fmt.Println(e)
+			return
+		} else {
+			return
+		}
+	}
+}

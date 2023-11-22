@@ -18,4 +18,5 @@ func main() {
 	single_producer_single_consumer.StopEarlyContext(ctx)
 	single_producer_multiple_consumers.WaitGroup(ctx)
 	single_producer_multiple_consumers.WaitChanel(ctx)
+	single_producer_multiple_consumers.FailOnFirstError(ctx)
 }
